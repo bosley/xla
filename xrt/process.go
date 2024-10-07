@@ -1,6 +1,7 @@
 package xrt
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/bosley/xla/xlist"
@@ -8,6 +9,7 @@ import (
 
 const (
 	RuntimeTypeGoProc = "GolangProcedure"
+	RuntimeTypeYield  = "Yield"
 )
 
 type RuntimeProcessHandle interface {
@@ -181,24 +183,120 @@ func (rtp *RuntimeProcess) eval(x xlist.Element) xlist.Element {
 	}
 }
 
-// EXPECTATIONS: Name of function sent as 0th argument.
-//		this is to ensure access to attributes on the function name
-//		can be used to drive behavior
+/*
+KEEP THIS
 
+This DEF keyword defines something in the current scope
+It does not permit the the definition of a symbol in the scope
+So right now we have no way of updating variables everything is immutable
+Via explicit definition, however things may be modified internally
+as a result of other function calls.
+
+It's important to remember that this is not a language as a configuration for a runtime. lmao
+*/
 func (rtp *RuntimeProcess) KwDef(args []xlist.Element) xlist.Element {
 	slog.Debug("KwDef called", "kw", args[0].String(), "num_args", len(args))
 
-	// Expect: def atom <TARGET>
-	// Evaluate target using rtp.Eval(target)  to get Element back
-	// if its an error, return the error
+	if len(args) != 3 {
+		return NewErr(fmt.Sprintf("KwDef must be of size 3, got %d", len(args)), args[0].Position)
+	}
 
-	return NewHalt()
+	if args[1].Attributes[xlist.ElementAttrType] != xlist.ElementTypeAtom {
+		return NewErrFromOffender("First argument to KwDef must be an atom", args[1])
+	}
+
+	// Convert args[1] data to string to get the identifier name
+	identifierName, ok := args[1].Data.(string)
+	if !ok {
+		return NewErrFromOffender("Failed to convert identifier to string", args[1])
+	}
+
+	// Check if the identifier already exists in the environment
+	if _, exists := rtp.Env.SearchSymbol(identifierName, false); exists {
+		return NewErrFromOffender(fmt.Sprintf("Cannot redefine variable '%s'", identifierName), args[1])
+	}
+
+	result := rtp.eval(args[2])
+	if result.IsError() {
+		return result
+	}
+
+	// Set the variable in the environment
+	rtp.Env.SetSymbol(identifierName, result)
+
+	return result
 }
 
 func (rtp *RuntimeProcess) KwFn(args []xlist.Element) xlist.Element {
 	slog.Debug("KwFn called", "num_args", len(args))
 
-	return NewHalt()
+	if len(args) < 3 {
+		return NewErrFromOffender(fmt.Sprintf("KwFn expected to be of size 3, got %d", len(args)), args[0])
+	}
+
+	// Check if the second argument (args[1]) is a raw list element
+	if args[1].Attributes[xlist.ElementAttrType] != xlist.ElementTypeRaw {
+		return NewErrFromOffender("Second argument to KwFn must be a raw list element", args[1])
+	}
+
+	// Check if the remaining arguments are valid types
+	for i := 2; i < len(args); i++ {
+		argType := args[i].Attributes[xlist.ElementAttrType]
+		if argType != xlist.ElementTypeCollection &&
+			argType != xlist.ElementTypeAction &&
+			argType != xlist.ElementTypeRuntime &&
+			argType != xlist.ElementTypePrompt {
+			return NewErrFromOffender(fmt.Sprintf("Invalid argument type at position %d", i+1), args[i])
+		}
+	}
+
+	// Create the function handle
+	fnHandle := func(fnArgs []xlist.Element) xlist.Element {
+		// Create a new environment for the function, with the current environment as parent
+		fnEnv := NewSymbolEnvironment(rtp.Env)
+
+		// Bind the arguments to the function parameters
+		rawParams, ok := args[1].Data.([]xlist.Element)
+		if !ok {
+			return NewErrFromOffender("Failed to parse function parameters", args[1])
+		}
+
+		if len(fnArgs) != len(rawParams) {
+			return NewErrFromOffender(fmt.Sprintf("Expected %d arguments, got %d", len(rawParams), len(fnArgs)), args[0])
+		}
+
+		for i, param := range rawParams {
+			paramName, ok := param.Data.(string)
+			if !ok {
+				return NewErrFromOffender("Invalid parameter name", param)
+			}
+			fnEnv.SetSymbol(paramName, fnArgs[i])
+		}
+
+		// Execute the function body
+		var result xlist.Element
+		for i := 2; i < len(args); i++ {
+			result = rtp.eval(args[i])
+			if result.IsError() {
+				return result
+			}
+			// Check if the result is a yield, and if so, return it immediately
+			if resultType, exists := result.Attributes[xlist.ElementAttrType]; exists && resultType == RuntimeTypeYield {
+				return result
+			}
+		}
+
+		return result
+	}
+
+	// Return the function handle wrapped in an xlist.Element
+	return xlist.Element{
+		Position: args[0].Position,
+		Attributes: map[string]string{
+			xlist.ElementAttrType: RuntimeTypeGoProc,
+		},
+		Data: fnHandle,
+	}
 }
 
 func (rtp *RuntimeProcess) KwRef(args []xlist.Element) xlist.Element {

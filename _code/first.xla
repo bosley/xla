@@ -1,1 +1,4 @@
-(def :int x :moot -33.00)
+(def x 33)  ; You cant re-define symbols by design yet
+            ; everything shall be "shadow-able" via scoping, but the
+            ; eventually we will utilize xlist tags to flag the def as mutable via:
+            ;       (def :mut x 33)

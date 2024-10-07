@@ -57,3 +57,8 @@ func (se *SymbolEnvironment) SearchSymbol(key string, permitParentSearch bool) (
 
 	return xlist.Element{}, false
 }
+
+// SetSymbol sets a symbol in the current environment's symbol map
+func (se *SymbolEnvironment) SetSymbol(identifier string, result xlist.Element) {
+	se.Symbols[identifier] = result
+}
