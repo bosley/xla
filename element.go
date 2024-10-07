@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 // New const block for attribute keys
 const (
 	ElementAttrType    = "element_type"
@@ -25,6 +30,7 @@ type Element struct {
 	Position   uint32            // index into buffer
 	Attributes map[string]string // typename and other attributes
 	Data       interface{}       // STRING or []Element, depending on context
+	Tags       []string
 }
 
 // IsError checks if the Element represents an error condition.
@@ -45,4 +51,39 @@ func (e *Element) MergeAttributes(incoming map[string]string) {
 	for key, value := range incoming {
 		e.Attributes[key] = value
 	}
+}
+
+// String returns a string representation of the Element.
+func (e Element) String() string {
+	var b strings.Builder
+
+	b.WriteString(fmt.Sprintf("{%d ", e.Position))
+	b.WriteString(fmt.Sprint(e.Attributes))
+	b.WriteString(" ")
+
+	switch data := e.Data.(type) {
+	case string:
+		b.WriteString(data)
+	case []Element:
+		if len(data) > 0 {
+			b.WriteString("[")
+			for i, child := range data {
+				if i > 0 {
+					b.WriteString(" ")
+				}
+				b.WriteString(child.String())
+			}
+			b.WriteString("]")
+		}
+	default:
+		b.WriteString(fmt.Sprint(data))
+	}
+
+	if len(e.Tags) > 0 {
+		b.WriteString(" ")
+		b.WriteString(fmt.Sprint(e.Tags))
+	}
+
+	b.WriteString("}")
+	return b.String()
 }

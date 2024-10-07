@@ -8,8 +8,7 @@ import (
 
 // main is the entry point of the program.
 // It handles command-line arguments, file loading, and initiates the parsing process.
-// The parsed result is then printed to the console.
-// Users can modify this function to integrate the parser into their own applications or to customize output formatting.
+// The parsed result is then printed to the console using the Element's String() method.
 func main() {
 	flag.Parse()
 
@@ -33,14 +32,15 @@ func main() {
 
 	runes := []rune(string(content))
 
-	// Collect takes in any slice of ruins and expect a full top level statement,
-	// meaning that comments or lists must be present, all input not matching this
-	// other than white space result in an error
 	result := Collect(runes)
 
-	// Print the result
-	fmt.Printf("Parsed result: %+v\n", result)
+	collapsed := Collapse(result)
 
-	// If you want to print the original content as well:
-	fmt.Printf("Original content: %s\n", string(runes))
+	if collapsed.IsError() {
+		fmt.Printf("Error: %s\n", collapsed.Data)
+		os.Exit(1)
+	}
+
+	// Use the new String() method to print the collapsed element
+	fmt.Println(collapsed.String())
 }

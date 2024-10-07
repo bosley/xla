@@ -60,6 +60,10 @@ func MatchAtomAttributes(atom string) map[string]string {
 		return attributes
 	}
 
+	if atom[0] == ':' {
+		attributes[ElementAttrPattern] = "tag"
+	}
+
 	// If no match found, return empty attributes
 	return attributes
 }
