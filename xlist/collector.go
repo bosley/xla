@@ -30,6 +30,11 @@ func MatchAtomAttributes(atom string) map[string]string {
 		return attributes
 	}
 
+	if govalidator.IsInt(atom) {
+		attributes[ElementAttrPattern] = "integer"
+		return attributes
+	}
+
 	// Hexadecimal pattern: 0x followed by hex digits
 	if strings.HasPrefix(atom, "0x") && govalidator.IsHexadecimal(atom[2:]) {
 		attributes[ElementAttrPattern] = "hex"
