@@ -1,4 +1,4 @@
-package main
+package xlist
 
 // Collapse takes an Element and returns a new Element with tags properly assigned
 // and tag elements removed from the structure. It serves as the entry point for

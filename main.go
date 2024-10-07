@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/bosley/xla/xlist"
 )
 
 // main is the entry point of the program.
@@ -32,9 +34,9 @@ func main() {
 
 	runes := []rune(string(content))
 
-	result := Collect(runes)
+	result := xlist.Collect(runes)
 
-	collapsed := Collapse(result)
+	collapsed := xlist.Collapse(result)
 
 	if collapsed.IsError() {
 		fmt.Printf("Error: %s\n", collapsed.Data)
