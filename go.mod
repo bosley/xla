@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	golang.org/x/crypto v0.28.0
+	golang.org/x/time v0.7.0
 	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.12
 )

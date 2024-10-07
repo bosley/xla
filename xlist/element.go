@@ -42,6 +42,55 @@ func (e Element) IsError() bool {
 	return false
 }
 
+func (e Element) IsComment() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeComment
+	}
+	return false
+}
+
+func (e Element) IsAtom() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeAtom
+	}
+	return false
+}
+
+func (e Element) IsAction() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeAction
+	}
+	return false
+}
+
+func (e Element) IsPrompt() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypePrompt
+	}
+	return false
+}
+
+func (e Element) IsRuntime() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeRuntime
+	}
+	return false
+}
+
+func (e Element) IsRaw() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeRaw
+	}
+	return false
+}
+
+func (e Element) IsCollection() bool {
+	if typeAttr, exists := e.Attributes[ElementAttrType]; exists {
+		return typeAttr == ElementTypeCollection
+	}
+	return false
+}
+
 // MergeAttributes combines the incoming attributes with the Element's existing attributes.
 // This is useful for adding or updating attributes of an Element after its initial creation.
 func (e *Element) MergeAttributes(incoming map[string]string) {
