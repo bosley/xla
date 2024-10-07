@@ -4,7 +4,7 @@ Runtime will be the structure that actually plays as like a service or a server 
 We need some sort of directory that points to users each user will have their own databases there are agents those databases can be vector and also will have vector database stored for the user fully attend a flat file structure for the project as we start
 I really don't play with databases a whole bunch but I may just use SQL light and plug those user and user places just so we don't have to write a bunch of code to support file system operations and stuff
 */
-package xlt
+package xrt
 
 const (
 	SettingPrimaryServiceDbName = "xla.service.db"
