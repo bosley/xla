@@ -12,49 +12,38 @@ func Collapse(e Element) Element {
 func collapseElement(e Element) Element {
 	switch data := e.Data.(type) {
 	case string:
-		// If the element's data is a string, it's a leaf node and doesn't need processing.
-		return e // Return the element as is, tag handling is done in the slice case
+		return e
 	case []Element:
-		// If the element's data is a slice of Elements, we need to process each child.
 		var newElements []Element
 		var currentTags []string
 
-		// Iterate through each child element in the slice.
-		for i := 0; i < len(data); i++ {
+		// Walk the list in reverse
+		for i := len(data) - 1; i >= 0; i-- {
 			child := data[i]
-			// Check if the current child is a tag element.
 			if pattern, hasPattern := child.Attributes[ElementAttrPattern]; hasPattern && pattern == "tag" {
-				// If it's a tag, add it to currentTags, removing the leading ':'.
-				currentTags = append(currentTags, child.Data.(string)[1:])
+				// Prepend the tag to currentTags
+				currentTags = append([]string{child.Data.(string)[1:]}, currentTags...)
 			} else {
-				// If it's not a tag, process it recursively.
+				// Process the child recursively
 				collapsedChild := collapseElement(child)
 
-				// Assign currentTags to the current non-tag element if it's not empty.
-				if !isEmptyElement(collapsedChild) {
-					if len(currentTags) > 0 {
-						// Append current tags to the child's existing tags.
-						collapsedChild.Tags = append(collapsedChild.Tags, currentTags...)
-						currentTags = []string{} // Reset currentTags after assigning
-					}
-					// Add the processed child to the new elements slice.
-					newElements = append(newElements, collapsedChild)
+				// Assign currentTags to this element
+				if len(currentTags) > 0 {
+					collapsedChild.Tags = append(collapsedChild.Tags, currentTags...)
+					currentTags = []string{} // Reset currentTags after assigning
 				}
+
+				// Prepend the processed child to the new elements slice
+				newElements = append([]Element{collapsedChild}, newElements...)
 			}
 		}
 
-		// Handle any remaining tags by assigning them to the last non-empty element.
-		if len(currentTags) > 0 && len(newElements) > 0 {
-			lastElement := &newElements[len(newElements)-1]
-			lastElement.Tags = append(lastElement.Tags, currentTags...)
+		// Handle any remaining tags by creating a new empty element with those tags
+		if len(currentTags) > 0 {
+			newElements = append([]Element{{Tags: currentTags}}, newElements...)
 		}
 
-		// If all children were removed (i.e., they were all empty), return an empty element.
-		if len(newElements) == 0 {
-			return Element{}
-		}
-
-		// Update the original element's Data with the new, processed elements.
+		// Update the original element's Data with the new, processed elements
 		e.Data = newElements
 		return e
 	default:

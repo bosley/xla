@@ -186,7 +186,7 @@ func (rtp *RuntimeProcess) eval(x xlist.Element) xlist.Element {
 //		can be used to drive behavior
 
 func (rtp *RuntimeProcess) KwDef(args []xlist.Element) xlist.Element {
-	slog.Debug("KwDef called", "num_args", len(args))
+	slog.Debug("KwDef called", "kw", args[0].String(), "num_args", len(args))
 
 	// Expect: def atom <TARGET>
 	// Evaluate target using rtp.Eval(target)  to get Element back

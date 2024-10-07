@@ -95,6 +95,7 @@ func main() {
 
 	collapsed := xlist.Collapse(result)
 
+	fmt.Println(collapsed.String())
 	if collapsed.IsError() {
 		fmt.Printf("Error: %s\n", collapsed.Data)
 		os.Exit(1)

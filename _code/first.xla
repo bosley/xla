@@ -1,1 +1,1 @@
-(def x 33)
+(def :int x :moot 33)
