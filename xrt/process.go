@@ -3,6 +3,7 @@ package xrt
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/bosley/xla/xlist"
 )
@@ -10,6 +11,7 @@ import (
 const (
 	RuntimeTypeGoProc = "GolangProcedure"
 	RuntimeTypeYield  = "Yield"
+	RuntimeTypeString = "String"
 )
 
 type RuntimeProcessHandle interface {
@@ -79,6 +81,7 @@ func (rtp *RuntimeProcess) AsMap() map[string]xlist.Element {
 		"yield": mpe(rtp.KwYield),
 		"do":    mpe(rtp.KwDo),
 		"if":    mpe(rtp.KwIf),
+		"put":   mpe(rtp.KwPut),
 	}
 }
 
@@ -221,9 +224,7 @@ func (rtp *RuntimeProcess) KwDef(args []xlist.Element) xlist.Element {
 		return result
 	}
 
-	// Set the variable in the environment
-	rtp.Env.SetSymbol(identifierName, result)
-
+	rtp.Env.Symbols[identifierName] = result
 	return result
 }
 
@@ -302,23 +303,167 @@ func (rtp *RuntimeProcess) KwFn(args []xlist.Element) xlist.Element {
 func (rtp *RuntimeProcess) KwRef(args []xlist.Element) xlist.Element {
 	slog.Debug("KwRef called", "num_args", len(args))
 
-	return NewHalt()
+	if len(args) < 2 {
+		return NewErrFromOffender("KwRef requires at least one argument", args[0])
+	}
+
+	var atoms []xlist.Element
+
+	for i := 1; i < len(args); i++ {
+		result := rtp.eval(args[i])
+		if result.IsError() {
+			return result
+		}
+
+		atom := xlist.Element{
+			Position: result.Position,
+			Attributes: map[string]string{
+				xlist.ElementAttrType: RuntimeTypeString,
+			},
+			Data: result.String(),
+		}
+
+		atoms = append(atoms, atom)
+	}
+
+	return xlist.Element{
+		Position: args[0].Position,
+		Attributes: map[string]string{
+			xlist.ElementAttrType: RuntimeTypeString,
+		},
+		Data: atoms,
+	}
 }
 
 func (rtp *RuntimeProcess) KwYield(args []xlist.Element) xlist.Element {
 	slog.Debug("KwYield called", "num_args", len(args))
+	if len(args) != 2 {
+		return NewErrFromOffender("KwYield requires exactly one argument", args[0])
+	}
 
-	return NewHalt()
+	result := rtp.eval(args[1])
+	if result.IsError() {
+		return result
+	}
+
+	return xlist.Element{
+		Position: args[0].Position,
+		Attributes: map[string]string{
+			xlist.ElementAttrType: RuntimeTypeYield,
+		},
+		Data: result,
+	}
 }
 
 func (rtp *RuntimeProcess) KwDo(args []xlist.Element) xlist.Element {
 	slog.Debug("KwDo called", "num_args", len(args))
+	if len(args) < 2 {
+		return NewErrFromOffender("KwDo requires at least one action", args[0])
+	}
 
-	return NewHalt()
+	for i := 1; i < len(args); i++ {
+		if !args[i].IsAction() {
+			return NewErrFromOffender("KwDo arguments must be action lists", args[i])
+		}
+	}
+
+	for {
+		rtp.Env = rtp.Env.PushSymbols()
+		for i := 1; i < len(args); i++ {
+			result := rtp.eval(args[i])
+			if result.IsError() {
+				rtp.Env = rtp.Env.PopSymbols()
+				return result
+			}
+			if result.Attributes[xlist.ElementAttrType] == RuntimeTypeYield {
+				rtp.Env = rtp.Env.PopSymbols()
+				return result
+			}
+		}
+		rtp.Env = rtp.Env.PopSymbols()
+	}
 }
 
 func (rtp *RuntimeProcess) KwIf(args []xlist.Element) xlist.Element {
 	slog.Debug("KwIf called", "num_args", len(args))
+	if len(args) < 3 || len(args) > 4 {
+		return NewErrFromOffender("KwIf requires 2 or 3 arguments (condition, action, optional else)", args[0])
+	}
 
-	return NewHalt()
+	for i := 1; i < len(args); i++ {
+		if !args[i].IsAction() && !args[i].IsRuntime() {
+			return NewErrFromOffender(fmt.Sprintf("KwIf argument %d must be an action or runtime list", i), args[i])
+		}
+	}
+
+	condition := rtp.eval(args[1])
+	if condition.IsError() {
+		return condition
+	}
+
+	if condition.Attributes[xlist.ElementAttrType] != "integer" {
+		return NewErrFromOffender("Condition must be an integer", args[1])
+	}
+
+	if condition.Data.(int) != 0 {
+		return rtp.eval(args[2])
+	} else if len(args) == 4 {
+		return rtp.eval(args[3])
+	}
+
+	// If condition is false and there's no else clause, return nil
+	return xlist.Element{
+		Position: args[0].Position,
+		Data:     "0",
+		Attributes: map[string]string{
+			xlist.ElementAttrType:    xlist.ElementTypeAtom,
+			xlist.ElementAttrPattern: "integer",
+		},
+	}
+}
+
+func (rtp *RuntimeProcess) KwPut(args []xlist.Element) xlist.Element {
+	slog.Debug("KwPut called", "num_args", len(args))
+
+	var buffer strings.Builder
+
+	var processElement func(elem xlist.Element)
+	processElement = func(elem xlist.Element) {
+		evaluated := rtp.eval(elem)
+		if evaluated.IsError() {
+			buffer.WriteString(fmt.Sprintf("Error: %s\n", evaluated.Data))
+			return
+		}
+
+		switch evaluated.Attributes[xlist.ElementAttrType] {
+		case xlist.ElementTypeAtom:
+			if str, ok := evaluated.Data.(string); ok {
+				buffer.WriteString(str + "\n")
+			} else {
+				buffer.WriteString(fmt.Sprintf("%v\n", evaluated.Data))
+			}
+		case xlist.ElementTypeCollection:
+			if elems, ok := evaluated.Data.([]xlist.Element); ok {
+				for _, e := range elems {
+					processElement(e)
+				}
+			}
+		default:
+			buffer.WriteString(fmt.Sprintf("%v\n", evaluated.Data))
+		}
+	}
+
+	for _, arg := range args[1:] {
+		processElement(arg)
+	}
+
+	fmt.Print(buffer.String())
+
+	return xlist.Element{
+		Position: args[0].Position,
+		Attributes: map[string]string{
+			xlist.ElementAttrType: RuntimeTypeString,
+		},
+		Data: buffer.String(),
+	}
 }

@@ -2,3 +2,6 @@
             ; everything shall be "shadow-able" via scoping, but the
             ; eventually we will utilize xlist tags to flag the def as mutable via:
             ;       (def :mut x 33)
+
+
+(put (ref x))

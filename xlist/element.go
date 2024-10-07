@@ -130,7 +130,7 @@ func (e Element) String() string {
 
 	if len(e.Tags) > 0 {
 		b.WriteString(" ")
-		b.WriteString(fmt.Sprint(e.Tags))
+		b.WriteString(strings.Join(e.Tags, ","))
 	}
 
 	b.WriteString("}")

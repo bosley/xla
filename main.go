@@ -112,8 +112,4 @@ func main() {
 		fmt.Printf("Runtime Error: %s\n", runtimeResult.Data)
 		os.Exit(1)
 	}
-
-	// Print the runtime result
-	fmt.Println("Runtime Result:")
-	fmt.Println(runtimeResult.String())
 }
