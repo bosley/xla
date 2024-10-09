@@ -1,3 +1,8 @@
+// The ResourceManager is responsible for loading and managing resources such as profiles.
+// Resources are referenced in the code using identifiers like "@profiles/general",
+// which correspond to entries in the ResourceManager's Profiles map.
+// For example, "@profiles/general" refers to the resource "general" loaded from "resources/profiles/general.yaml".
+
 package xvm
 
 import (
