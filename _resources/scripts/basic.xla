@@ -5,4 +5,4 @@
 
 ; This is a comment
 ;
-(let jimbo (llm @profiles/general))
+(let jimbo (vi "llama3.1" "calculator"))

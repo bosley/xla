@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/teilomillet/gollm"
+	"github.com/tmc/langchaingo/agents"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 	NodeTypeFloat
 	NodeTypeList
 	NodeTypeFn
-	NodeTypeGollm
+	NodeTypeVi
 	NodeTypeError
 )
 
@@ -75,8 +75,8 @@ func NewNodeNil() Node {
 	return NewNode(NodeTypeNil, nil)
 }
 
-func NewNodeGollm(val gollm.LLM) Node {
-	return NewNode(NodeTypeGollm, val)
+func NewNodeVi(val agents.Agent) Node {
+	return NewNode(NodeTypeVi, val)
 }
 
 func NewNodeError(err error) Node {
@@ -161,8 +161,8 @@ func (n Node) ToString() string {
 		return sb.String()
 	case NodeTypeError:
 		return fmt.Sprintf("Error: %v", n.Data.(error))
-	case NodeTypeGollm:
-		return fmt.Sprintf("(+gollm +ptr %p)", &n.Data)
+	case NodeTypeVi:
+		return fmt.Sprintf("(+vi +ptr %p)", &n.Data)
 	default:
 		return "<unknown>"
 	}
@@ -218,8 +218,8 @@ func (n Node) toStringDeepIndent(indent int) string {
 		return sb.String()
 	case NodeTypeError:
 		return fmt.Sprintf("Error: %v", n.Data.(error))
-	case NodeTypeGollm:
-		return fmt.Sprintf("(+gollm +ptr %p)", n.Data)
+	case NodeTypeVi:
+		return fmt.Sprintf("(+vi +ptr %p)", n.Data)
 	default:
 		return "<unknown>"
 	}

@@ -2,27 +2,28 @@ package xvm
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/bosley/xla/xlist"
+	"github.com/bosley/xla/xvi"
 )
 
 type Runtime struct {
 	rootEnv      *xlist.Env
 	instructions []xlist.Node
-	rm           ResourceManager
+	resourcePath string
 }
 
 func New(ins []xlist.Node, resourcesPath string) (Runtime, error) {
-	rm, err := NewResourceManager(resourcesPath)
-	if err != nil {
-		return Runtime{}, fmt.Errorf("failed to create ResourceManager: %w", err)
+	if v, err := os.Stat(resourcesPath); os.IsNotExist(err) || (!v.IsDir()) {
+		return Runtime{}, fmt.Errorf("resources path does not exist, or is not a directory: %s", resourcesPath)
 	}
 
 	r := Runtime{
 		rootEnv:      xlist.NewEnv(),
 		instructions: ins,
-		rm:           rm,
+		resourcePath: resourcesPath,
 	}
 	env := xlist.NewEnv()
 	env.Symbols = map[string]xlist.Node{
@@ -30,14 +31,14 @@ func New(ins []xlist.Node, resourcesPath string) (Runtime, error) {
 		"set": xlist.NewNodeFn(xlist.Fn{Name: "set", Args: []xlist.Node{xlist.NewNodeId("key"), xlist.NewNodeId("value")}, Body: r.KwSet}),
 		"fn":  xlist.NewNodeFn(xlist.Fn{Name: "fn", Args: []xlist.Node{xlist.NewNodeId("params"), xlist.NewNodeId("body")}, Body: r.KwFn}),
 		"put": xlist.NewNodeFn(xlist.Fn{Name: "put", Args: []xlist.Node{}, Body: r.KwPut, IsVariadic: true}),
-		"llm": xlist.NewNodeFn(xlist.Fn{Name: "llm", Args: []xlist.Node{xlist.NewNodeId("resource")}, Body: r.KwLlm}),
+		"vi":  xlist.NewNodeFn(xlist.Fn{Name: "vi", IsVariadic: true, Body: r.KwVi}),
 	}
 	r.rootEnv = env
 	return r, nil
 }
 
 // executeExpressions evaluates a series of expressions and returns the last result
-func (r Runtime) executeExpressions(exprs []xlist.Node, env *xlist.Env) xlist.Node {
+func (r Runtime) ExecuteExpressions(exprs []xlist.Node, env *xlist.Env) xlist.Node {
 	var result xlist.Node
 	for _, expr := range exprs {
 		result = r.eval(expr, env)
@@ -49,7 +50,7 @@ func (r Runtime) executeExpressions(exprs []xlist.Node, env *xlist.Env) xlist.No
 }
 
 func (r Runtime) Run() xlist.Node {
-	return r.executeExpressions(r.instructions, r.rootEnv)
+	return r.ExecuteExpressions(r.instructions, r.rootEnv)
 }
 
 func (r Runtime) eval(node xlist.Node, env *xlist.Env) xlist.Node {
@@ -123,7 +124,7 @@ func (r Runtime) KwFn(args []xlist.Node, env *xlist.Env) xlist.Node {
 			}
 
 			// Execute the body of the lambda
-			return r.executeExpressions(args[1:], lambdaEnv)
+			return r.ExecuteExpressions(args[1:], lambdaEnv)
 		},
 	}
 
@@ -199,39 +200,33 @@ func (r Runtime) KwPut(args []xlist.Node, env *xlist.Env) xlist.Node {
 	return xlist.NewNodeString(val)
 }
 
-func (r Runtime) KwLlm(args []xlist.Node, env *xlist.Env) xlist.Node {
-	if len(args) != 1 {
-		return xlist.NewNodeError(fmt.Errorf("llm requires exactly 1 argument: resource"))
+func (r Runtime) KwVi(args []xlist.Node, env *xlist.Env) xlist.Node {
+	if len(args) < 1 {
+		return xlist.NewNodeError(fmt.Errorf("vi requires at least one argument: model name"))
 	}
 
-	rstr := args[0].ToString()
-	if args[0].Type != xlist.NodeTypeId || !strings.HasPrefix(rstr, "@") {
-		return xlist.NewNodeError(fmt.Errorf("argument to llm must be a resource id starting with @"))
+	// Evaluate and validate model name (first argument)
+	modelNameNode := r.eval(args[0], env)
+	if modelNameNode.Type != xlist.NodeTypeString {
+		return xlist.NewNodeError(fmt.Errorf("first argument (model name) must evaluate to a string"))
+	}
+	modelName := modelNameNode.Data.(string)
+
+	// Evaluate and validate tools (remaining arguments)
+	toolStrings := make([]string, 0, len(args)-1)
+	for _, arg := range args[1:] {
+		toolNode := r.eval(arg, env)
+		if toolNode.Type != xlist.NodeTypeString {
+			return xlist.NewNodeError(fmt.Errorf("all tool arguments must evaluate to strings"))
+		}
+		toolStrings = append(toolStrings, toolNode.Data.(string))
 	}
 
-	// Parse rstr
-	parts := strings.SplitN(rstr[1:], "/", 2)
-	if len(parts) != 2 {
-		return xlist.NewNodeError(fmt.Errorf("invalid resource id format: %s", rstr))
+	// Create the Vi instance using NewChatVi
+	vi, err := xvi.NewChatVi(modelName, toolStrings)
+	if err != nil {
+		return xlist.NewNodeError(fmt.Errorf("failed to create Vi: %w", err))
 	}
 
-	resourceType, resourceName := parts[0], parts[1]
-
-	var resource Resource
-	var ok bool
-
-	switch resourceType {
-	case "profiles":
-		resource, ok = r.rm.Profiles[resourceName]
-	default:
-		return xlist.NewNodeError(fmt.Errorf("unknown resource type: %s", resourceType))
-	}
-
-	if !ok {
-		return xlist.NewNodeError(fmt.Errorf("resource not found: %s", rstr))
-	}
-
-	// TODO: Implement actual LLM functionality using the resource
-	// For now, we'll just return the resource information as a string
-	return xlist.NewNodeString(fmt.Sprintf("Resource: %s, Type: %s, Path: %s", resource.Name, resource.Type, resource.FilePath))
+	return xlist.NewNode(xlist.NodeTypeVi, vi)
 }
