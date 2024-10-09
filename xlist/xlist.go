@@ -16,7 +16,7 @@ const (
 	NodeTypeList
 	NodeTypeFn
 	NodeTypeGollm
-	NodeTypeError // New constant for error type
+	NodeTypeError
 )
 
 type Node struct {

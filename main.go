@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,13 +17,17 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	// Define flags
+	resourcesPath := flag.String("resources", "./resources", "Path to resources for xvm.New()")
+	flag.Parse()
+
 	// Check if a filename is provided as an argument
-	if len(os.Args) < 2 {
-		slog.Error("Usage: go run main.go <filename>")
+	if flag.NArg() < 1 {
+		slog.Error("Usage: go run main.go [--resources <path>] <filename>")
 		os.Exit(1)
 	}
 
-	filename := os.Args[1]
+	filename := flag.Arg(0)
 
 	// Parse the file
 	nodes, err := xlist.Parse(filename)
@@ -39,8 +44,16 @@ func main() {
 		}
 	}
 
-	// Create a new runtime
-	result := xvm.New(nodes).Run()
+	// Create a new runtime with the specified resources path
+	runtime, err := xvm.New(nodes, *resourcesPath)
+
+	if err != nil {
+		slog.Error("Failed to create runtime", "error", err)
+		os.Exit(1)
+	}
+
+	result := runtime.Run()
+
 	if result.Type == xlist.NodeTypeError {
 		slog.Error("Execution failure", "error", result.Data.(error))
 		os.Exit(1)

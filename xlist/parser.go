@@ -37,8 +37,17 @@ func parseContent(content []rune) ([]Node, error) {
 	var i int
 
 	for i < len(content) {
+		// Skip whitespace
 		if unicode.IsSpace(content[i]) {
 			i++
+			continue
+		}
+
+		// Handle comments: skip everything after ';' until end of line
+		if content[i] == ';' {
+			for i < len(content) && content[i] != '\n' {
+				i++
+			}
 			continue
 		}
 

@@ -10,12 +10,19 @@ import (
 type Runtime struct {
 	rootEnv      *xlist.Env
 	instructions []xlist.Node
+	rm           ResourceManager
 }
 
-func New(ins []xlist.Node) Runtime {
+func New(ins []xlist.Node, resourcesPath string) (Runtime, error) {
+	rm, err := NewResourceManager(resourcesPath)
+	if err != nil {
+		return Runtime{}, fmt.Errorf("failed to create ResourceManager: %w", err)
+	}
+
 	r := Runtime{
 		rootEnv:      xlist.NewEnv(),
 		instructions: ins,
+		rm:           rm,
 	}
 	env := xlist.NewEnv()
 	env.Symbols = map[string]xlist.Node{
@@ -23,9 +30,10 @@ func New(ins []xlist.Node) Runtime {
 		"set": xlist.NewNodeFn(xlist.Fn{Name: "set", Args: []xlist.Node{xlist.NewNodeId("key"), xlist.NewNodeId("value")}, Body: r.KwSet}),
 		"fn":  xlist.NewNodeFn(xlist.Fn{Name: "fn", Args: []xlist.Node{xlist.NewNodeId("params"), xlist.NewNodeId("body")}, Body: r.KwFn}),
 		"put": xlist.NewNodeFn(xlist.Fn{Name: "put", Args: []xlist.Node{}, Body: r.KwPut, IsVariadic: true}),
+		"llm": xlist.NewNodeFn(xlist.Fn{Name: "llm", Args: []xlist.Node{xlist.NewNodeId("resource")}, Body: r.KwLlm}),
 	}
 	r.rootEnv = env
-	return r
+	return r, nil
 }
 
 // executeExpressions evaluates a series of expressions and returns the last result
@@ -189,4 +197,41 @@ func (r Runtime) KwPut(args []xlist.Node, env *xlist.Env) xlist.Node {
 	output.WriteString("\n")
 	fmt.Print(output.String())
 	return xlist.NewNodeString(val)
+}
+
+func (r Runtime) KwLlm(args []xlist.Node, env *xlist.Env) xlist.Node {
+	if len(args) != 1 {
+		return xlist.NewNodeError(fmt.Errorf("llm requires exactly 1 argument: resource"))
+	}
+
+	rstr := args[0].ToString()
+	if args[0].Type != xlist.NodeTypeId || !strings.HasPrefix(rstr, "@") {
+		return xlist.NewNodeError(fmt.Errorf("argument to llm must be a resource id starting with @"))
+	}
+
+	// Parse rstr
+	parts := strings.SplitN(rstr[1:], "/", 2)
+	if len(parts) != 2 {
+		return xlist.NewNodeError(fmt.Errorf("invalid resource id format: %s", rstr))
+	}
+
+	resourceType, resourceName := parts[0], parts[1]
+
+	var resource Resource
+	var ok bool
+
+	switch resourceType {
+	case "profiles":
+		resource, ok = r.rm.Profiles[resourceName]
+	default:
+		return xlist.NewNodeError(fmt.Errorf("unknown resource type: %s", resourceType))
+	}
+
+	if !ok {
+		return xlist.NewNodeError(fmt.Errorf("resource not found: %s", rstr))
+	}
+
+	// TODO: Implement actual LLM functionality using the resource
+	// For now, we'll just return the resource information as a string
+	return xlist.NewNodeString(fmt.Sprintf("Resource: %s, Type: %s, Path: %s", resource.Name, resource.Type, resource.FilePath))
 }
