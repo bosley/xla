@@ -18,7 +18,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Define flags
-	resourcesPath := flag.String("resources", "./resources", "Path to resources for xvm.New()")
+	resourcesPath := flag.String("resources", "./_resources", "Path to resources for xvm.New()")
 	flag.Parse()
 
 	// Check if a filename is provided as an argument

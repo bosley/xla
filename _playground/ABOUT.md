@@ -1,0 +1,1 @@
+This is just an area to play with go code that im not quite familiar with

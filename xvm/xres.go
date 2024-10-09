@@ -19,19 +19,43 @@ type Resource struct {
 }
 
 type ResourceManager struct {
-	Profiles map[string]Resource
+	Profiles  map[string]Resource
+	XlaGoPath Resource
 }
 
 func NewResourceManager(path string) (ResourceManager, error) {
 	profilesPath := filepath.Join(path, "profiles")
 
-	// Check if the profiles directory exists
-	if info, err := os.Stat(profilesPath); err != nil || !info.IsDir() {
-		return ResourceManager{}, fmt.Errorf("profiles directory does not exist at %s", profilesPath)
-	}
+	// Add "xla_gopath" to the resources path
+	xlaGoPath := filepath.Join(path, "xla_gopath")
 
 	rm := ResourceManager{
 		Profiles: make(map[string]Resource),
+	}
+
+	// Check if xlaGoPath exists and is a file
+	if info, err := os.Stat(xlaGoPath); err == nil && !info.IsDir() {
+		absPath, err := filepath.Abs(xlaGoPath)
+		if err != nil {
+			return ResourceManager{}, fmt.Errorf("failed to get absolute path of xla_gopath: %w", err)
+		}
+		rm.XlaGoPath.Name = "xla_gopath"
+		rm.XlaGoPath.FilePath = absPath
+		rm.XlaGoPath.Type = "dir"
+	} else {
+		// xlaGoPath does not exist or is a directory, create it
+		err := os.MkdirAll(xlaGoPath, os.ModePerm)
+		if err != nil {
+			return ResourceManager{}, fmt.Errorf("failed to create xla_gopath directory: %w", err)
+		}
+	}
+
+	// When loading, if profilesPath doesn't exist, create it and add to the resource manager
+	if info, err := os.Stat(profilesPath); err != nil || !info.IsDir() {
+		err = os.MkdirAll(profilesPath, os.ModePerm)
+		if err != nil {
+			return ResourceManager{}, fmt.Errorf("failed to create profiles directory at %s: %w", profilesPath, err)
+		}
 	}
 
 	// Read all yaml files in the profiles directory
