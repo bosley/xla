@@ -1,0 +1,4 @@
+
+(let x 44)
+(let gamma (fn () (put x)))
+(gamma)
