@@ -1,0 +1,2 @@
+(let vi-calculator (fn () (vi "llama3.1" "calculator")))
+(? (vi-calculator) "What is 2 + 2")

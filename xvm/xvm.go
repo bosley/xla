@@ -1,12 +1,15 @@
 package xvm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/bosley/xla/xlist"
 	"github.com/bosley/xla/xvi"
+	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/chains"
 )
 
 type Runtime struct {
@@ -32,6 +35,7 @@ func New(ins []xlist.Node, resourcesPath string) (Runtime, error) {
 		"fn":  xlist.NewNodeFn(xlist.Fn{Name: "fn", Args: []xlist.Node{xlist.NewNodeId("params"), xlist.NewNodeId("body")}, Body: r.KwFn}),
 		"put": xlist.NewNodeFn(xlist.Fn{Name: "put", Args: []xlist.Node{}, Body: r.KwPut, IsVariadic: true}),
 		"vi":  xlist.NewNodeFn(xlist.Fn{Name: "vi", IsVariadic: true, Body: r.KwVi}),
+		"?":   xlist.NewNodeFn(xlist.Fn{Name: "?", Args: []xlist.Node{xlist.NewNodeId("agent"), xlist.NewNodeId("inquiry")}, Body: r.KwInquire}),
 	}
 	r.rootEnv = env
 	return r, nil
@@ -229,4 +233,36 @@ func (r Runtime) KwVi(args []xlist.Node, env *xlist.Env) xlist.Node {
 	}
 
 	return xlist.NewNode(xlist.NodeTypeVi, vi)
+}
+
+func (r Runtime) KwInquire(args []xlist.Node, env *xlist.Env) xlist.Node {
+	if len(args) != 2 {
+		return xlist.NewNodeError(fmt.Errorf("? requires exactly 2 arguments: agent and inquiry"))
+	}
+
+	// Evaluate and validate agent argument
+	agentNode := r.eval(args[0], env)
+	if agentNode.Type != xlist.NodeTypeVi {
+		return xlist.NewNodeError(fmt.Errorf("first argument (agent) must evaluate to a Vi instance"))
+	}
+	agent, ok := agentNode.Data.(*xvi.Vi)
+	if !ok {
+		return xlist.NewNodeError(fmt.Errorf("invalid Vi instance"))
+	}
+
+	// Evaluate and validate inquiry argument
+	inquiryNode := r.eval(args[1], env)
+	if inquiryNode.Type != xlist.NodeTypeString {
+		return xlist.NewNodeError(fmt.Errorf("second argument (inquiry) must evaluate to a string"))
+	}
+	inquiry := inquiryNode.Data.(string)
+
+	// Create executor and run the inquiry
+	executor := agents.NewExecutor(agent.Agent)
+	answer, err := chains.Run(context.Background(), executor, inquiry)
+	if err != nil {
+		return xlist.NewNodeError(fmt.Errorf("error executing agent: %w", err))
+	}
+
+	return xlist.NewNodeString(answer)
 }
